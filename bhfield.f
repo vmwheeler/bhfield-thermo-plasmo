@@ -109,19 +109,22 @@ C (11) x=1.0D0 -> x='1.0D0'
       
       REAL*8 WLFAC(3)
       
+      REAL*8 RADCOR,RADCOT,WAVEL,PI
+      
+      INTEGER NGRID(3)
+      REAL*8 XPMIN(3),XPMAX(3)
+      
       CHARACTER*80 DIRNAM,FILNAM(3),FNAME(3)
       CHARACTER*50 FNLOGF,FNZAXS,FNESQ(4),FNUAB(4)
+      CHARACTER*24 STRTIM
       
 #ifdef CHECK_UNDERFLOW
       REAL*8 RDMIN
       CHARACTER*80 RDSTR
       common /RDMIN/RDMIN,RDSTR
-
       RDMIN=UFTOL
       RDSTR='Default'
 #endif
-      
-      print *, "here we go"
       
 #ifdef DATA_DIR
       DIRNAM=DATA_DIR
@@ -129,19 +132,49 @@ C (11) x=1.0D0 -> x='1.0D0'
 #else
       DIRNAM='./'
 #endif
-      
+
+C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+C     Declare all relevant physical constants
+C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      WAVEL = 500
+      RADCOR = 30
+      RADCOT = 60
+      PI=ACOS(-1.0D0)
+
+C     The optical constants:
+C     reference (background)
       FILNAM(1)='Segelstein.txt'
-      WLFAC(1)=1.0D0
+      WLFAC(1)=1.0D0 !factor so all wavelengths in micron
+C     core
       FILNAM(2)='SiO2_palik.nk'
       WLFAC(2)=1.0D-4
+C     shell
       FILNAM(3)='Ag_palik.nk'
       WLFAC(3)=1.0D-4
       DO 901 I=1,3
        FNAME(I)=DIRNAM(1:MAX(INDEX(DIRNAM,' ')-1,1))//
      1          FILNAM(I)(1:MAX(INDEX(FILNAM(I),' ')-1,1))
-       PRINT *, "using nk data for medium ",  I, ": " , FILNAM(I)
   901 CONTINUE
+      PRINT *, "using nk data for reference medium: ", FNAME(1)
+      PRINT *, "using nk data for core medium: ", FNAME(2)
+      PRINT *, "using nk data for shell medium: ", FNAME(3)
       
+      
+C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+C     Define the grid
+C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      NGRID(1) = 100 !r
+      NGRID(2) = 100 !theta
+      NGRID(3) = 100 !phi
+      
+      XPMIN(1) = 0
+      XPMAX(1) = RADCOT
+      XPMIN(2) = 0
+      XPMAX(2) = PI
+      XPMIN(3) = 0
+      XPMAX(3) = 2*PI
+
+
       
 C
 C output file names
@@ -158,10 +191,29 @@ C
 C non-absorbing medium: external UABS = 0
       FNUAB(3)='U_3exte.dat'
 C
-      I=0      
+
+C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+C     Start log file and checking for underflow problems
+C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      OPEN(51,FILE=FNLOGF,STATUS='UNKNOWN') ! log file
+
+#if defined(DEBUG_BESSEL) || defined(CHECK_UNDERFLOW)
+      OPEN(88,FILE='bhdebug.log',STATUS='UNKNOWN')
+      WRITE(88,*) 'standard version'
+#endif /* DEBUG_BESSEL or CHECK_UNDERFLOW */
+      CALL FDATE(STRTIM)
+      WRITE(51,*) 'Started: ',STRTIM
+      WRITE(51,*) ''
+      WRITE(51,*) 'Command line:'
+
+C      WRITE(51,*) 'bhfield ',WAVEL,RADCOR,RADCOT,
+C     1             (NGRID(I),XPMIN(I),XPMAX(I),I=1,3),CASE,FCOR,
+C     2             REFMED,REFRE1,REFIM1,REFRE2,REFIM2
+   11 FORMAT (/"COATED SPHERE SCATTERING: bhfield (version: ",A,
+     1        1X,A,")"/)
+      WRITE(51,11) BHFIELD_VERSION,'standard'
       
-      
-      
+
       STOP
       END
       
