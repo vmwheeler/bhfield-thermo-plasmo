@@ -48,7 +48,7 @@ DBOPT = -DCHECK_UNDERFLOW -DCHECK_TANGENTIAL_CONTINUITY -DDEBUG_BESSEL -fbounds-
 .SUFFIXES:
 .SUFFIXES: .f .o .exe
 # .PRECIOUS: %.o %-arp.o %-arp-bd.o
-.PHONY: all clean ftnchek
+.PHONY: all clean ftnchek allclean
 %.o: %.f
 %.exe: %.o
 
@@ -76,6 +76,9 @@ all: bhfield-std-db.exe
 clean:
 	rm -f *o *exe
 
+allclean:
+	rm -f *o *exe *dat *log
+	
 # gfortran warning not enough!!! do ftnchek too!!!
 # ftnchek doesn't support preprocessing, so do cpp first (-E: preprocessing only)
 
