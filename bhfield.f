@@ -105,18 +105,26 @@ C (11) x=1.0D0 -> x='1.0D0'
       REAL*8 UFTOL
       PARAMETER (UFTOL=1.0D-6)
       
-      INTEGER I
+      INTEGER I,J,K,NSTOPF,IW,CT,NPTSPH,NPTSTH,IWHERE,N
       
       REAL*8 WLFAC(3)
       
-      REAL*8 RADCOR,RADCOT,WAVEL,PI
+      REAL*8 RADCOR,RADCOT,WAVEL,PI,CC,EPSVAC,MU,OMEGA
+      REAL*8 REFMED,REFRE1,REFIM1,REFRE2,REFIM2
+      REAL*8 X,Y,Y1,Y2,Y3,Y4,YMAX,EXTMAX,RMAX
+      REAL*8 QEXT,QSCA,QBACK,QABS,EFSQ,HFSQ,UABS
+      REAL*8 DELTAS1,RAD
       
-      INTEGER NGRID(3)
-      REAL*8 XPMIN(3),XPMAX(3)
+      COMPLEX*16 RFREL1,RFREL2
+      COMPLEX*16 EC(3),HC(3)
+      
+      INTEGER RGRID
+      REAL*8 XPMIN(3),XPMAX(3),RSTEP,THSTEP,PHSTEP,XP(3)
       
       CHARACTER*80 DIRNAM,FILNAM(3),FNAME(3)
       CHARACTER*50 FNLOGF,FNZAXS,FNESQ(4),FNUAB(4)
       CHARACTER*24 STRTIM
+      CHARACTER*10 SFIELD(4)
       
 #ifdef CHECK_UNDERFLOW
       REAL*8 RDMIN
@@ -136,36 +144,51 @@ C (11) x=1.0D0 -> x='1.0D0'
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 C     Declare all relevant physical constants
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      WAVEL = 500
-      RADCOR = 30
-      RADCOT = 60
+      WAVEL = 0.5D0
+      RADCOR = 0.03D0
+      RADCOT = 0.06D0
       PI=ACOS(-1.0D0)
-
+      CC=2.99792458D8 ! light speed [m s-1]
+      EPSVAC=1.0D7/(4.0D0*PI*CC*CC) ! eps0[F m-1]
+      MU=4.0D0*PI*1.0D-7 ! assume non-magnetic (MU=MU0=const) [N A-2] 
+      OMEGA=2.0D0*PI*CC/(WAVEL*1.0D-6) ! angular frequency [s-1]
+      
+      
 C     The optical constants:
 C     reference (background)
       FILNAM(1)='Segelstein.txt'
       WLFAC(1)=1.0D0 !factor so all wavelengths in micron
 C     core
-      FILNAM(2)='SiO2_palik.nk'
+      FILNAM(2)='Ag_palik.nk'
       WLFAC(2)=1.0D-4
 C     shell
-      FILNAM(3)='Ag_palik.nk'
+      FILNAM(3)='SiO2_palik.nk'
       WLFAC(3)=1.0D-4
       DO 901 I=1,3
        FNAME(I)=DIRNAM(1:MAX(INDEX(DIRNAM,' ')-1,1))//
      1          FILNAM(I)(1:MAX(INDEX(FILNAM(I),' ')-1,1))
   901 CONTINUE
-      PRINT *, "using nk data for reference medium: ", FNAME(1)
-      PRINT *, "using nk data for core medium: ", FNAME(2)
-      PRINT *, "using nk data for shell medium: ", FNAME(3)
+      PRINT *, "using this nk data for reference medium: ", FNAME(1)
+      PRINT *, "using this nk data for core medium: ", FNAME(2)
+      PRINT *, "using this nk data for shell medium: ", FNAME(3)
+      CALL OPTCON(1,WAVEL,FNAME,WLFAC, 
+     1             REFMED,REFRE1,REFIM1,REFRE2,REFIM2)
+      
+C     get relative refractive indices
+      RFREL1=DCMPLX(REFRE1,REFIM1)/REFMED
+      RFREL2=DCMPLX(REFRE2,REFIM2)/REFMED
+  
+C     define the particle size parameters for core and shell
+      X=2.0D0*PI*RADCOR*REFMED/WAVEL
+      Y=2.0D0*PI*RADCOT*REFMED/WAVEL
       
       
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 C     Define the grid
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      NGRID(1) = 100 !r
-      NGRID(2) = 100 !theta
-      NGRID(3) = 100 !phi
+      RGRID = 5 !r
+      !THGRID = 5 !theta
+      !PHGRID = 5 !phi
       
       XPMIN(1) = 0
       XPMAX(1) = RADCOT
@@ -173,14 +196,14 @@ C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       XPMAX(2) = PI
       XPMIN(3) = 0
       XPMAX(3) = 2*PI
-
+      
 
       
 C
 C output file names
 C
       FNLOGF='bhfield.log'
-      FNZAXS  ='EU_zax.txt'
+      FNZAXS  ='EU_zax.dat'
       FNESQ(4)='E_0allf.dat'
       FNESQ(1)='E_1core.dat'
       FNESQ(2)='E_2coat.dat'
@@ -204,24 +227,320 @@ C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       CALL FDATE(STRTIM)
       WRITE(51,*) 'Started: ',STRTIM
       WRITE(51,*) ''
-      WRITE(51,*) 'Command line:'
-
-C      WRITE(51,*) 'bhfield ',WAVEL,RADCOR,RADCOT,
-C     1             (NGRID(I),XPMIN(I),XPMAX(I),I=1,3),CASE,FCOR,
-C     2             REFMED,REFRE1,REFIM1,REFRE2,REFIM2
+   29 FORMAT ("Optical properties:"/
+     1"Ref index of ref medium: ",F7.4,3X/
+     2"Ref index of core medium: ",F7.4,3X," + ",F7.4,3X,"*i"/
+     3"Ref index of shell medium: ",F7.4,3X," + ",F7.4,3X,"*i")
+      WRITE(51,29) REFMED,REFRE1,REFIM1,REFRE2,REFIM2
+      
    11 FORMAT (/"COATED SPHERE SCATTERING: bhfield (version: ",A,
      1        1X,A,")"/)
       WRITE(51,11) BHFIELD_VERSION,'standard'
+   13 FORMAT ("Input parameters:"/
+     1"WAVELENGTH [um] =",F7.4,3X,
+     2"CORE RADIUS[um] =",F7.3,3X,"COAT RADIUS[um] =",F7.3/
+     3"Rad-Span: ","Ngrid =",I4," min[um] =",F7.3," max[um] =",F7.3/
+     4"Tht-Span: ","Ngrid =",I4," min[um] =",F7.3," max[um] =",F7.3/
+     5"Phi-Span: ","Ngrid =",I4," min[um] =",F7.3," max[um] =",F7.3)
+      WRITE(51,13) WAVEL,RADCOR,RADCOT
+!     1             (NGRID(I),XPMIN(I),XPMAX(I),I=1,3)
+     
+C Bohren: X*REFIM1, X*REFIM2, AND Y*REFIM2 SHOULD BE LESS THAN ABOUT 30
+   15 FORMAT('!!! CAUTION !!! ',A8,' > 30: ',D10.4)
+      IF(X*REFIM1.GE.30.0D0) THEN
+       WRITE(51,15) 'X*REFIM1', X*REFIM1
+      END IF
+      IF(X*REFIM2.GE.30.0D0) THEN
+       WRITE(51,15) 'X*REFIM2', X*REFIM2
+      END IF
+      IF(Y*REFIM2.GE.30.0D0) THEN
+       WRITE(51,15) 'Y*REFIM2', Y*REFIM2
+      END IF
+     
+     
+C
+C max order of COEFF (A-W) necessary for field calc
+C
+      Y1=2.0D0*PI*RADCOR*ABS(DCMPLX(REFRE1,REFIM1))/WAVEL
+      Y2=2.0D0*PI*RADCOT*ABS(DCMPLX(REFRE1,REFIM1))/WAVEL
+      Y3=2.0D0*PI*RADCOT*ABS(DCMPLX(REFRE2,REFIM2))/WAVEL
       
+C VMW fixed to only use radial coord... used to use cartesian and check each
+      EXTMAX=MAX(ABS(XPMIN(1)),ABS(XPMAX(1)))
 
+C     RMAX=EXTMAX*SQRT(2.0D0)
+      RMAX=EXTMAX*SQRT(3.0D0)
+      Y4=2.0D0*PI*RMAX*REFMED/WAVEL
+      YMAX=MAX(Y1,Y2,Y3,Y4)
+      NSTOPF=INT(YMAX+4.05D0*YMAX**0.3333D0+2.0D0)
+C
+   14 FORMAT ("CORE SIZE PARAM = ",F8.3,", COAT SIZE",
+     1" PARAM = ",F8.3,", NSTOP(estim) = ",I3)
+      WRITE(51,14) X,Y,NSTOPF
+      
+C
+C calculate coefficients
+C
+      CALL BHCOAT(X,Y,RFREL1,RFREL2,NSTOPF,QEXT,QSCA,QBACK)
+      QABS=QEXT-QSCA
+      
+      PRINT *,"Qabs = ", QABS
+      PRINT *,"Qsca = ", QSCA
+
+   18 FORMAT('wavelength[nm],epsilon(ext),epsilon(abs),Qext,Qabs,',
+     1'Qsca,Qback')
+      WRITE(51,18)
+   16 FORMAT('',F7.2,6E11.4)
+      WRITE(51,16) WAVEL*1.0D3,QEXT,QABS,QSCA
+C
+
+  950 FORMAT('# ',A8,' field: ',A/'# r[um] theta[] phi[] ',A)
+  955 FORMAT('# Fields on z-axis: z[um] ',A)
+
+      SFIELD(1)='Core    '
+      SFIELD(2)='Coat    '
+      SFIELD(3)='External'
+      SFIELD(4)='All     '
+      
+      
+      DO 80 IW=1,4
+       OPEN(10+IW,FILE=FNESQ(IW),STATUS='UNKNOWN')
+       OPEN(20+IW,FILE=FNUAB(IW),STATUS='UNKNOWN')
+       WRITE(10+IW,950) SFIELD(IW),'EFSQ','EFSQ[dimensionless]'
+       WRITE(20+IW,950) SFIELD(IW),'Uabs','UABS[F m-1 s-1]'
+   80 CONTINUE 
+      OPEN(15,FILE=FNZAXS,STATUS='UNKNOWN')
+      WRITE(15,955) 'EFSQ[dimensionless] UABS[F m-1 s-1]'
+      
+      
+C     create grid spacing for solution
+C scan steps
+C     TODO: do something fancier for angular intervals so there is a constants
+C           spacing for any "layer"
+
+!       DO 9874 I=1,3
+!        IF(NGRID(I).GT.1) THEN
+!         XPSTEP(I)=(XPMAX(I)-XPMIN(I))/DBLE(NGRID(I)-1)
+!        ELSE
+!         XPSTEP(I)=0.0D0
+!        END IF
+!        PRINT *, "XPSTEP(", I, ")", XPSTEP(I)
+!  9874 CONTINUE
+ 
+C     this garbage makes a prescribed arc length for integration
+C     choose length for smallest circle and all others are chosen from there
+      RSTEP = (XPMAX(1)-XPMIN(1))/DBLE(RGRID-1)
+      DELTAS1 = RSTEP*2*PI/5.0D0
+      CT = 0
+      RAD = 0
+      
+      PRINT *, "RGRID = ", RGRID
+      PRINT *, "RSTEP = ", RSTEP
+      
+      DO 100 I=1,RGRID-1
+       RAD = DBLE(I)*RSTEP
+       
+       NPTSTH = NINT(PI*RAD/DELTAS1)
+       THSTEP = PI/DBLE(NPTSTH-1)
+       NPTSPH = NINT(2*PI*RAD/DELTAS1)
+       PHSTEP = 2*PI/DBLE(NPTSPH-1)
+       PRINT *, "NPTSTH: ", NPTSTH
+       PRINT *, "THSTEP: ", THSTEP
+       PRINT *, "NPTSPH: ", NPTSPH
+       PRINT *, "PHSTEP: ", PHSTEP
+       PRINT *, ""
+
+       XP(1) = RAD
+       
+       DO 110 J=1,NPTSTH
+        XP(2)=XPMIN(2)+DBLE(J-1)*THSTEP
+        DO 120 K=1,NPTSPH
+         XP(3)=XPMIN(3)+DBLE(K-1)*PHSTEP
+         
+         
+         CALL FIELDVMW(WAVEL,REFMED,REFRE1,REFIM1,REFRE2,REFIM2,
+     1              RADCOR,RADCOT,XP, IWHERE,EC,HC)
+         
+         CT = CT + 1
+         PRINT *, CT, ": ", XP(1), ", ",XP(2), ", ",XP(3), IWHERE
+C
+C vector electric field: snapshots [Re (t=0), Im (t=period/4)]
+C electric field strength E*(E^*) [(V m-1)^2] = EFSQ * E0**2
+C EFSQ: dimensionless
+C
+         EFSQ=ABS(EC(1))**2.0D0+ABS(EC(2))**2.0D0+ABS(EC(3))**2.0D0
+C
+C vector magnetic field: snapshots [Re (t=0), Im (t=period/4)]
+C magnetic field strength H*(H^*) [(A m-1)^2] = HFSQ * E0**2
+C HFSQ[(A V-1)^2] = [(A m-1)^2 (V m-1)^-2]  (unused)
+C
+         HFSQ=ABS(HC(1))**2.0D0+ABS(HC(2))**2.0D0+ABS(HC(3))**2.0D0
+C
+C absorbed energy per unit volume and time Ua [W m-3] = UABS * E0**2
+C eps0[F m-1], omega[s-1], E0[V m-1]; [F]=[C V-1], [W]=[C V s-1]
+C UABS: [F m-1 s-1] = [(W m-3) (V m-1)^-2]
+C Our formula: Uabs = EPSVAC*OMEGA*REFRE*REFIM*EFSQ (nonmagnetic)
+C
+         IF(IWHERE.EQ.1) THEN
+C
+          UABS=EPSVAC*OMEGA*REFRE1*REFIM1*EFSQ
+C
+         ELSE IF(IWHERE.EQ.2) THEN
+C
+          UABS=EPSVAC*OMEGA*REFRE2*REFIM2*EFSQ
+C
+         ELSE
+C
+          UABS=0.0D0
+C
+         END IF
+         
+C
+C output data
+C
+
+C each domain (core, coat, or external) & all fields
+
+  701    FORMAT(3E13.5,E13.5)
+  706    FORMAT(3E13.5,6E13.5)
+  711    FORMAT(3E13.5,6E13.5,F6.3,3F6.1,I3)
+  712    FORMAT(3E13.5,6E13.5,F6.3,4F6.1,I3)
+  713    FORMAT(3E13.5,3E13.5,F7.2,6E13.5,E11.3)
+
+         DO 130 IW=1,4
+          IF(IW.EQ.4.OR.IW.EQ.IWHERE) THEN
+           WRITE(10+IW,701) (XP(N),N=1,3),EFSQ
+           WRITE(20+IW,701) (XP(N),N=1,3),UABS
+          ELSE
+           WRITE(10+IW,701) (XP(N),N=1,3),0.0D0
+           WRITE(20+IW,701) (XP(N),N=1,3),0.0D0
+          ENDIF
+  130    CONTINUE
+C
+C field on z-axis
+C
+         IF((ABS(XP(1)).LT.1.0D-12).AND.(ABS(XP(2)).LT.1.0D-12)) THEN
+          WRITE(15,*) XP(3),EFSQ,UABS
+         END IF
+  120   CONTINUE
+  110  CONTINUE
+  100 CONTINUE   
+      
+      
       STOP
       END
       
+      
+      
+C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+C     VMW rewrite of FIELD that receives and GIVES the E and H field in 
+C     spherical coordinates
+C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      SUBROUTINE FIELDVMW(WAVEL,REFMED,REFRE1,REFIM1,REFRE2,REFIM2,
+     1                 RADCOR,RADCOT,XP, IWHERE,EF,HF)
+C
+C     select field subroutines to calc E & H complex fields
+C     (cartesian components)
+C
+      IMPLICIT NONE
+      INTEGER IWHERE
+      REAL*8 WAVEL,REFMED,REFRE1,REFIM1,REFRE2,REFIM2
+      REAL*8 RADCOR,RADCOT,R,THETA,PHI
+      REAL*8 XP(3)
+      COMPLEX*16 EF(3),HF(3)
+
+#ifdef CHECK_TANGENTIAL_CONTINUITY
+      INTEGER NCMAX
+      PARAMETER (NCMAX=10)
+      INTEGER IWHBEF,M,IBD
+      INTEGER NC(3)
+      REAL*8 RB,THETAB,PHIB,XPB(3)
+      COMPLEX*16 EFB(3)
+      SAVE IWHBEF,RB,THETAB,PHIB,NC,XPB,EFB
+      DATA IWHBEF,NC,XPB/0,3*0,3*0.7772012D0/
+#endif
+
+      R = XP(1)
+      THETA = XP(2)
+      PHI = XP(3)
+      
+C
+C avoid origin (R=0); division by rho (x) in subroutines
+C use R=small but retain fake XP=YP=ZP=0 for vtk 3D plot
+C
+      IF(R.EQ.0.0D0) THEN
+       R=MAX(RADCOR,RADCOT*1.0D-3)*1.0D-3
+      END IF
+C
+      IF(R.LE.RADCOR) THEN
+C core internal field
+       IWHERE=1
+       CALL FIELIN(WAVEL,REFRE1,REFIM1,R,THETA,PHI, EF,HF)
+C
+      ELSE IF(R.LE.RADCOT) THEN
+C coating field
+       IWHERE=2
+       CALL FIELCT(WAVEL,REFRE2,REFIM2,
+     1             R,THETA,PHI, EF,HF)
+C
+      ELSE
+C external field = incident + scattered
+       IWHERE=3
+       CALL FIELEX(WAVEL,REFMED,R,THETA,PHI, EF,HF)
+C
+      END IF
+
+
+C BH 59: check tangential continuity
+
+#ifdef CHECK_TANGENTIAL_CONTINUITY
+
+ 1011 FORMAT('CHECK_TANGENTIAL_CONTINUITY: region[',
+     1 I1,'] E(r),E(theta),E(phi) at (x y z=',3E15.8,
+     2 ')(r theta phi=',E15.8,2F8.3,')->',
+     3 3E15.8,' (Re,Im)',3('(',E15.8,',',E15.8,')'))
+
+      IF((IWHERE.NE.IWHBEF).AND.(
+     1 ((XP(1).EQ.XPB(1)).AND.(XP(2).EQ.XPB(2))).OR.
+     2 ((XP(2).EQ.XPB(2)).AND.(XP(3).EQ.XPB(3))).OR.
+     3 ((XP(3).EQ.XPB(3)).AND.(XP(1).EQ.XPB(1)))
+     4 )) THEN
+
+       IBD=IWHBEF+IWHERE-2
+       NC(IBD)=NC(IBD)+1
+
+       IF(NC(IBD).LT.NCMAX) THEN
+        write(51,*) 'Crossing border:'
+        write(51,1011) IWHBEF,(XPB(M),M=1,3),RB,THETAB,PHIB,
+     1  (ABS(EFB(M)),M=1,3),(EFB(M),M=1,3)
+        write(51,1011) IWHERE,(XP(M),M=1,3),R,THETA,PHI,
+     1  (ABS(EF(M)),M=1,3),(EF(M),M=1,3)
+       ELSE IF(NC(IBD).EQ.NCMAX) THEN
+        write(51,*) 'etc ...'
+       END IF
+
+      END IF
+
+      IWHBEF=IWHERE
+      RB=R
+      THETAB=THETA
+      PHIB=PHI
+      DO 200 M=1,3
+       XPB(M)=XP(M)
+       EFB(M)=EF(M)
+  200 CONTINUE
+
+#endif
+
+
+      RETURN
+      END   
+      
+      
+      
 
       SUBROUTINE VMWTEST(IWHERE)
-C
-C record max value and position for each domain
-C
+C     sanity check
       IMPLICIT NONE
       INTEGER IWHERE
 C
