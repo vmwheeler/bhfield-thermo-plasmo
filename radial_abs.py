@@ -9,6 +9,8 @@ thetas = data[:,1]
 phis = data[:,2]
 Uabss = data[:,3]
 
+radshell = np.max(rads)  
+
 npts = np.max(rads.shape)
 
 result = 0
@@ -47,4 +49,5 @@ for i in range(npts-1):
   
   result += Uabss[i]*r*r*dr*sthdth*dph
       
+result = result/(4./3.*np.pi*radshell**3)      
 print "Gods be good: " + str(result)
