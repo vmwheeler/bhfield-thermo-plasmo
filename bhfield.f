@@ -186,7 +186,7 @@ C     define the particle size parameters for core and shell
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 C     Define the grid
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      RGRID = 5 !r
+      RGRID = 32 !r
       !THGRID = 5 !theta
       !PHGRID = 5 !phi
       
@@ -330,7 +330,7 @@ C           spacing for any "layer"
 C     this garbage makes a prescribed arc length for integration
 C     choose length for smallest circle and all others are chosen from there
       RSTEP = (XPMAX(1)-XPMIN(1))/DBLE(RGRID-1)
-      DELTAS1 = RSTEP*2*PI/5.0D0
+      DELTAS1 = RSTEP*2*PI/20.0D0
       CT = 0
       RAD = 0
       
