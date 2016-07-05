@@ -1,13 +1,20 @@
 #!/usr/bin/env python
 
 import numpy as np
+#import matplotlib.pyplot as plt
 
 data = np.loadtxt("./U_0allf.dat",skiprows=2)
 
 rads = data[:,0]
+rads = rads/np.max(rads)
 thetas = data[:,1]
 phis = data[:,2]
 Uabss = data[:,3]
+
+#rads = np.linspace(0.0000,1.,30)
+#thetas = np.linspace(0,np.pi,40)
+#phis = np.linspace(0,2*np.pi,70)
+
 
 radshell = np.max(rads)  
 
@@ -16,38 +23,36 @@ npts = np.max(rads.shape)
 result = 0
 
 ct = 0
+           
+dr = rads[0]
+rad = rads[0]
+avrad = 0.5*rad
+          
+dth = phis[1] - phis[0]
+dph = phis[1] - phis[0]
 
-#for i in range(npts-1):
-  #rn = rads[i]
-  #rnp1 = rads[i+1]
-  #r = 0.5*(rn+rnp1)
-  #dr = rnp1-rn
-  #for j in range(npts-1):
-    #thn = thetas[i]
-    #thnp1 = thetas[i+1]
-    #sthdth = np.sin(0.5*(thnp1+thn))*(thnp1-thn)
-    #for k in range(npts-1):
-      #phn = phis[i]
-      #phnp1 = phis[i+1]
-      #dph = phnp1 - phn
-      #result += Uabss[ct]*r*r*dr*sthdth*dph
-      #ct += 1
-      
-for i in range(npts-1):
-  rn = rads[i]
-  rnp1 = rads[i+1]
-  r = 0.5*(rn+rnp1)
-  dr = rnp1-rn
+print "rad: " + str(rad) 
+print "dr: " + str(dr)
+print "dth: " + str(dth)
+print "dph: " + str(dph)
+
+vol = 0    
+for i in range(npts):
+  
+  if rads[i]>rad:
+    rad = rads[i]
+    dph = phis[i+1] - phis[i]
+    dth = np.copy(dph)
+    print dth
+    print dph
     
-  thn = thetas[i]
-  thnp1 = thetas[i+1]
-  sthdth = np.sin(0.5*(thnp1+thn))*(thnp1-thn)
+  dV = rad*rad*np.sin(thetas[i])*dth*dph
+
+
+  #result += Uabss[i]*rad*rad*dr*sinthdth*dph
+  vol += dV
+  #vol += avrad**2.*dr*sinthdth*dph
   
-  phn = phis[i]
-  phnp1 = phis[i+1]
-  dph = phnp1 - phn
-  
-  result += Uabss[i]*r*r*dr*sthdth*dph
-      
-result = result/(4./3.*np.pi*radshell**3)      
-print "Gods be good: " + str(result)
+realvol = 4./3.*np.pi*radshell**3.
+print "volume check (" + str(realvol) + "): " + str(vol)  
+#print "Gods be good: " + str(result)
