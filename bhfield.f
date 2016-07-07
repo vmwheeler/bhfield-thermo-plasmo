@@ -112,17 +112,18 @@ C (11) x=1.0D0 -> x='1.0D0'
       REAL*8 RADCOR,RADCOT,WAVEL,PI,CC,EPSVAC,MU,OMEGA
       REAL*8 REFMED,REFRE1,REFIM1,REFRE2,REFIM2
       REAL*8 X,Y,Y1,Y2,Y3,Y4,YMAX,EXTMAX,RMAX
-      REAL*8 QEXT,QSCA,QBACK,QABS,EFSQ,HFSQ,UABS
+      REAL*8 QEXT,QSCA,QBACK,QABS,EFSQ,UABS
       REAL*8 DELTAS1,RAD
       
       COMPLEX*16 RFREL1,RFREL2
       COMPLEX*16 EC(3),HC(3)
       
-      INTEGER RGRID
+      INTEGER RGRID,SGRID,NGRID(3)
       REAL*8 XPMIN(3),XPMAX(3),RSTEP,THSTEP,PHSTEP,XP(3)
+      REAL*8 XCMIN(3),XCMAX(3),XCSTEP(3),XC(3)
       
       CHARACTER*80 DIRNAM,FILNAM(3),FNAME(3)
-      CHARACTER*50 FNLOGF,FNZAXS,FNESQ(4),FNUAB(4)
+      CHARACTER*50 FNLOGF,FNESQ(4),FNUAB(4),FNUABC(4)
       CHARACTER*24 STRTIM
       CHARACTER*10 SFIELD(4)
       
@@ -144,7 +145,7 @@ C (11) x=1.0D0 -> x='1.0D0'
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 C     Declare all relevant physical constants
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      WAVEL = 0.5D0
+      WAVEL = 7.0D0
       RADCOR = 0.03D0
       RADCOT = 0.06D0
       PI=ACOS(-1.0D0)
@@ -159,10 +160,12 @@ C     reference (background)
       FILNAM(1)='Segelstein.txt'
       WLFAC(1)=1.0D0 !factor so all wavelengths in micron
 C     core
-      FILNAM(2)='Ag_palik.nk'
+      FILNAM(2)='SiO2_palik.nk'
+C      FILNAM(2)='Ag_palik.nk'
       WLFAC(2)=1.0D-4
 C     shell
       FILNAM(3)='SiO2_palik.nk'
+C      FILNAM(3)='Ag_palik.nk'
       WLFAC(3)=1.0D-4
       DO 901 I=1,3
        FNAME(I)=DIRNAM(1:MAX(INDEX(DIRNAM,' ')-1,1))//
@@ -186,7 +189,8 @@ C     define the particle size parameters for core and shell
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 C     Define the grid
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      RGRID = 32 !r
+      RGRID = 5 !r
+      SGRID = 5
       !THGRID = 5 !theta
       !PHGRID = 5 !phi
       
@@ -196,23 +200,39 @@ C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       XPMAX(2) = PI
       XPMIN(3) = 0
       XPMAX(3) = 2*PI
+     
+C     Now in cartesian     
+      NGRID(1) = 25
+      NGRID(2) = 25
+      NGRID(3) = 25
+      
+      XCMIN(1) = -RADCOT
+      XCMAX(1) = RADCOT
+      XCMIN(2) = -RADCOT
+      XCMAX(2) = RADCOT
+      XCMIN(3) = -RADCOT
+      XCMAX(3) = RADCOT   
       
 
-      
 C
 C output file names
 C
       FNLOGF='bhfield.log'
-      FNZAXS  ='EU_zax.dat'
       FNESQ(4)='E_0allf.dat'
       FNESQ(1)='E_1core.dat'
       FNESQ(2)='E_2coat.dat'
       FNESQ(3)='E_3exte.dat'
-      FNUAB(4)='U_0allf.dat'
-      FNUAB(1)='U_1core.dat'
-      FNUAB(2)='U_2coat.dat'
+      FNUAB(4)='U_0allf_rad.dat'
+      FNUAB(1)='U_1core_rad.dat'
+      FNUAB(2)='U_2coat_rad.dat'
 C non-absorbing medium: external UABS = 0
-      FNUAB(3)='U_3exte.dat'
+      FNUAB(3)='U_3exte_rad.dat'
+      !Cartesian
+      FNUABC(4)='U_0allf_cart.dat'
+      FNUABC(1)='U_1core_cart.dat'
+      FNUABC(2)='U_2coat_cart.dat'
+C non-absorbing medium: external UABS = 0
+      FNUABC(3)='U_3exte_cart.dat'
 C
 
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -243,7 +263,6 @@ C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
      4"Tht-Span: ","Ngrid =",I4," min[um] =",F7.3," max[um] =",F7.3/
      5"Phi-Span: ","Ngrid =",I4," min[um] =",F7.3," max[um] =",F7.3)
       WRITE(51,13) WAVEL,RADCOR,RADCOT
-!     1             (NGRID(I),XPMIN(I),XPMAX(I),I=1,3)
      
 C Bohren: X*REFIM1, X*REFIM2, AND Y*REFIM2 SHOULD BE LESS THAN ABOUT 30
    15 FORMAT('!!! CAUTION !!! ',A8,' > 30: ',D10.4)
@@ -266,7 +285,12 @@ C
       Y3=2.0D0*PI*RADCOT*ABS(DCMPLX(REFRE2,REFIM2))/WAVEL
       
 C VMW fixed to only use radial coord... used to use cartesian and check each
-      EXTMAX=MAX(ABS(XPMIN(1)),ABS(XPMAX(1)))
+C now uses worst case between radial and cart
+      
+      EXTMAX=MAX(ABS(XPMIN(1)),ABS(XPMAX(1)),
+     1            ABS(XCMIN(1)),ABS(XCMIN(2)),ABS(XCMIN(3)),
+     1            ABS(XCMAX(1)),ABS(XCMAX(2)),ABS(XCMAX(3)))
+
 
 C     RMAX=EXTMAX*SQRT(2.0D0)
       RMAX=EXTMAX*SQRT(3.0D0)
@@ -295,7 +319,8 @@ C
 C
 
   950 FORMAT('# ',A8,' field: ',A/'# r[um] theta[] phi[] ',A)
-  955 FORMAT('# Fields on z-axis: z[um] ',A)
+  951 FORMAT('# ',A8,' field: ',A/'# x[um] y[um] z[um] ',A)
+
 
       SFIELD(1)='Core    '
       SFIELD(2)='Coat    '
@@ -306,44 +331,50 @@ C
       DO 80 IW=1,4
        OPEN(10+IW,FILE=FNESQ(IW),STATUS='UNKNOWN')
        OPEN(20+IW,FILE=FNUAB(IW),STATUS='UNKNOWN')
+       OPEN(30+IW,FILE=FNUABC(IW),STATUS='UNKNOWN')
        WRITE(10+IW,950) SFIELD(IW),'EFSQ','EFSQ[dimensionless]'
        WRITE(20+IW,950) SFIELD(IW),'Uabs','UABS[F m-1 s-1]'
+       WRITE(30+IW,951) SFIELD(IW),'Uabs','UABS[F m-1 s-1]'
    80 CONTINUE 
-      OPEN(15,FILE=FNZAXS,STATUS='UNKNOWN')
-      WRITE(15,955) 'EFSQ[dimensionless] UABS[F m-1 s-1]'
+      
+  701 FORMAT(3E13.5,E13.5)
+C  706 FORMAT(3E13.5,6E13.5)
+C  711 FORMAT(3E13.5,6E13.5,F6.3,3F6.1,I3)
+C  712 FORMAT(3E13.5,6E13.5,F6.3,4F6.1,I3)
+C  713 FORMAT(3E13.5,3E13.5,F7.2,6E13.5,E11.3)
       
       
 C     create grid spacing for solution
-C scan steps
-C     TODO: do something fancier for angular intervals so there is a constants
-C           spacing for any "layer"
 
-!       DO 9874 I=1,3
-!        IF(NGRID(I).GT.1) THEN
-!         XPSTEP(I)=(XPMAX(I)-XPMIN(I))/DBLE(NGRID(I)-1)
-!        ELSE
-!         XPSTEP(I)=0.0D0
-!        END IF
-!        PRINT *, "XPSTEP(", I, ")", XPSTEP(I)
-!  9874 CONTINUE
+C scan steps
+
+      DO 9874 I=1,3
+       IF(NGRID(I).GT.1) THEN
+        XCSTEP(I)=(XCMAX(I)-XCMIN(I))/DBLE(NGRID(I)-1)
+       ELSE
+        XCSTEP(I)=0.0D0
+       END IF
+ 9874 CONTINUE
  
 C     this garbage makes a prescribed arc length for integration
 C     choose length for smallest circle and all others are chosen from there
       RSTEP = (XPMAX(1)-XPMIN(1))/DBLE(RGRID-1)
-      DELTAS1 = RSTEP*2*PI/20.0D0
+      DELTAS1 = RSTEP*2*PI/DBLE(SGRID-1)
       CT = 0
       RAD = 0
       
       PRINT *, "RGRID = ", RGRID
       PRINT *, "RSTEP = ", RSTEP
       
-      DO 100 I=1,RGRID-1
-       RAD = DBLE(I)*RSTEP
+      DO 100 I=1,RGRID
+       RAD = DBLE(I-1)*RSTEP
        
        NPTSTH = NINT(PI*RAD/DELTAS1)
        THSTEP = PI/DBLE(NPTSTH-1)
        NPTSPH = NINT(2*PI*RAD/DELTAS1)
        PHSTEP = 2*PI/DBLE(NPTSPH-1)
+       
+       PRINT *, "***new outer loop***"
        PRINT *, "NPTSTH: ", NPTSTH
        PRINT *, "THSTEP: ", THSTEP
        PRINT *, "NPTSPH: ", NPTSPH
@@ -351,6 +382,29 @@ C     choose length for smallest circle and all others are chosen from there
        PRINT *, ""
 
        XP(1) = RAD
+C      Grab a point at the center so python can interpolate later:
+       IF (RAD.EQ.0) THEN
+        XP(2) = 0
+        XP(3) = 0
+        CALL FIELDVMW(WAVEL,REFMED,REFRE1,REFIM1,REFRE2,REFIM2,
+     1              RADCOR,RADCOT,XP, IWHERE,EC,HC)
+        EFSQ=ABS(EC(1))**2.0D0+ABS(EC(2))**2.0D0+ABS(EC(3))**2.0D0
+        UABS=EPSVAC*OMEGA*REFRE1*REFIM1*EFSQ
+        PRINT *, "at 0: ", UABS
+        DO 129 IW=1,4
+          IF(IW.EQ.4.OR.IW.EQ.IWHERE) THEN
+           WRITE(10+IW,701) (XP(N),N=1,3),EFSQ
+           WRITE(20+IW,701) (XP(N),N=1,3),UABS
+          ELSE
+           WRITE(10+IW,701) (XP(N),N=1,3),0.0D0
+           WRITE(20+IW,701) (XP(N),N=1,3),0.0D0
+          ENDIF
+  129    CONTINUE
+         CT = CT + 1
+         PRINT *, CT, ": ", XP(1), ", ",XP(2), ", ",XP(3), IWHERE
+       END IF
+       
+C      Now do the rest of the points      
        
        DO 110 J=1,NPTSTH
         XP(2)=XPMIN(2)+DBLE(J-1)*THSTEP
@@ -369,12 +423,7 @@ C electric field strength E*(E^*) [(V m-1)^2] = EFSQ * E0**2
 C EFSQ: dimensionless
 C
          EFSQ=ABS(EC(1))**2.0D0+ABS(EC(2))**2.0D0+ABS(EC(3))**2.0D0
-C
-C vector magnetic field: snapshots [Re (t=0), Im (t=period/4)]
-C magnetic field strength H*(H^*) [(A m-1)^2] = HFSQ * E0**2
-C HFSQ[(A V-1)^2] = [(A m-1)^2 (V m-1)^-2]  (unused)
-C
-         HFSQ=ABS(HC(1))**2.0D0+ABS(HC(2))**2.0D0+ABS(HC(3))**2.0D0
+
 C
 C absorbed energy per unit volume and time Ua [W m-3] = UABS * E0**2
 C eps0[F m-1], omega[s-1], E0[V m-1]; [F]=[C V-1], [W]=[C V s-1]
@@ -401,11 +450,6 @@ C
 
 C each domain (core, coat, or external) & all fields
 
-  701    FORMAT(3E13.5,E13.5)
-  706    FORMAT(3E13.5,6E13.5)
-  711    FORMAT(3E13.5,6E13.5,F6.3,3F6.1,I3)
-  712    FORMAT(3E13.5,6E13.5,F6.3,4F6.1,I3)
-  713    FORMAT(3E13.5,3E13.5,F7.2,6E13.5,E11.3)
 
          DO 130 IW=1,4
           IF(IW.EQ.4.OR.IW.EQ.IWHERE) THEN
@@ -416,15 +460,77 @@ C each domain (core, coat, or external) & all fields
            WRITE(20+IW,701) (XP(N),N=1,3),0.0D0
           ENDIF
   130    CONTINUE
-C
-C field on z-axis
-C
-         IF((ABS(XP(1)).LT.1.0D-12).AND.(ABS(XP(2)).LT.1.0D-12)) THEN
-          WRITE(15,*) XP(3),EFSQ,UABS
-         END IF
+
+
   120   CONTINUE
   110  CONTINUE
   100 CONTINUE   
+      
+      PRINT *, "Now for cartesian"
+      CT = 0
+      
+      DO 101 I=1,NGRID(3)
+       XC(3)=XCMIN(3)+DBLE(I-1)*XCSTEP(3)
+       DO 111 J=1,NGRID(2)
+        XC(2)=XCMIN(2)+DBLE(J-1)*XCSTEP(2)
+        DO 121 K=1,NGRID(1)
+         XC(1)=XCMIN(1)+DBLE(K-1)*XCSTEP(1)
+         
+C         PRINT *, XC(3),XC(2),XC(1)
+C         PRINT *, SQRT(XP(1)*XP(1)+XP(2)*XP(2)+XP(3)*XP(3))
+         CALL FIELD(WAVEL,REFMED,REFRE1,REFIM1,REFRE2,REFIM2,
+     1              RADCOR,RADCOT,XC, IWHERE,EC,HC)
+         
+         CT = CT + 1
+         PRINT *, CT, ": ", XC(1), ", ",XC(2), ", ",XC(3), IWHERE
+C
+C vector electric field: snapshots [Re (t=0), Im (t=period/4)]
+C electric field strength E*(E^*) [(V m-1)^2] = EFSQ * E0**2
+C EFSQ: dimensionless
+C
+         EFSQ=ABS(EC(1))**2.0D0+ABS(EC(2))**2.0D0+ABS(EC(3))**2.0D0
+
+C
+C absorbed energy per unit volume and time Ua [W m-3] = UABS * E0**2
+C eps0[F m-1], omega[s-1], E0[V m-1]; [F]=[C V-1], [W]=[C V s-1]
+C UABS: [F m-1 s-1] = [(W m-3) (V m-1)^-2]
+C Our formula: Uabs = EPSVAC*OMEGA*REFRE*REFIM*EFSQ (nonmagnetic)
+C
+         IF(IWHERE.EQ.1) THEN
+C
+          UABS=EPSVAC*OMEGA*REFRE1*REFIM1*EFSQ
+C
+         ELSE IF(IWHERE.EQ.2) THEN
+C
+          UABS=EPSVAC*OMEGA*REFRE2*REFIM2*EFSQ
+C
+         ELSE
+C
+          UABS=0.0D0
+C
+         END IF
+         
+C
+C output data
+C
+
+C each domain (core, coat, or external) & all fields
+
+
+         DO 131 IW=1,4
+          IF(IW.EQ.4.OR.IW.EQ.IWHERE) THEN
+           !WRITE(10+IW,701) (XP(N),N=1,3),EFSQ
+           WRITE(30+IW,701) (XC(N),N=1,3),UABS
+          ELSE
+           !WRITE(10+IW,701) (XP(N),N=1,3),0.0D0
+           WRITE(30+IW,701) (XC(N),N=1,3),0.0D0
+          ENDIF
+  131    CONTINUE
+
+
+  121   CONTINUE
+  111  CONTINUE
+  101 CONTINUE   
       
       
       STOP
