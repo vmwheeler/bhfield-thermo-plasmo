@@ -1,130 +1,89 @@
 #!/usr/bin/env python
 import numpy as np
 from scipy.integrate import quad, dblquad, tplquad, nquad
-from scipy.interpolate import griddata, LinearNDInterpolator
+from scipy.interpolate import griddata, LinearNDInterpolator, Rbf
 from math import isnan
 import matplotlib.pyplot as plt
 from mayavi import mlab
 
 data = np.loadtxt("./U_0allf_cart.dat",skiprows=2)
 
-radshell = 0.06  
+radshell = 0.06E-6
 radcore = radshell/2.
 
 #global Uabss
 Uabss = data[:,3]
 
 #global pts
-pts = data[:,0:3]
+pts = data[:,0:3]*1E-6
+
+print pts
 
 ct = 0
 
+interp = Rbf(pts[:,0],pts[:,1],pts[:,2],Uabss)
 
-
-interp = LinearNDInterpolator(pts,Uabss/10/np.max(Uabss))
 
 #xs = np.linspace(-radshell,radshell,100)
 #ys = np.linspace(-radshell,radshell,100)
 #zs = np.linspace(-radshell,radshell,100)
 
-xx,yy = np.mgrid[-radshell:radshell:0.0005,-radshell:radshell:0.0005]
+xx,yy = np.mgrid[-radshell:radshell:0.001,-radshell:radshell:0.001]
 
 #print xx
 #print yy
 
-interpslice = lambda x,y: interp(x,y,0.0)
+def interpslice(q1,q2):
+  zshape = np.shape(q2)
+  zeerho = np.zeros(zshape)
+  return interp(q1,q2,zeerho)
 
-mlab.surf(xx,yy,interpslice)
-mlab.show()
+
 
 #print griddata(pts,Uabss,(0.27273E-01,  0.18480E+01,  0.36960E+01),method='linear')
 #print griddata(pts,Uabss,(0.27273E-01,  0.18480E+01,  0.377E+01),method='linear')
 #print griddata(pts,Uabss,(0.27273E-01,  0.18480E+01,  0.38808E+01),method='linear')
 
-moop
 npts = np.max(Uabss.shape)
 
 pi = np.pi
 
-# limits for radius
-r1 = 0.
-r2 = radcore
-r3 = radshell
-# limits for theta
-t1 = 0.
-t2 = np.pi
-# limits for phi
-p1 = 0.
-p2 = 2.*np.pi
+# limits for x
+x1 = -radshell
+x2 = radshell
+# limits for y
+y1 = -radshell
+y2 = radshell
+# limits for z
+z1 = -radshell
+z2 = radshell
 
 
-radt = np.linspace(0,0.06,100)
-#thet = np.linspace(0,np.pi,100)
+#Qabs = tplquad(new_diff_Uabs, r1, r3, lambda r:   t1, lambda r:   t2,
+#                                      lambda r,t: p1, lambda r,t: p2,
+#                                      epsabs=1.49e-04, epsrel=1.49e-04)[0]
+Uabs_T = tplquad(interp,x1,x2, lambda x: y1, lambda x: y2,
+                             lambda x,y: z1, lambda x,y: z2)
 
-Uts = interp(radt,np.pi,0)
-#Uts = interp(0.05,thet,0.)
+Ap = np.pi*radshell*radshell
+print 'Uabs_T: ' + str(Uabs_T[0])
+print 'Uabs_T/Ap: ' + str(Uabs_T[0]/Ap)
 
-
-print pts[1:5,2]
-
-
-plt.figure()
-#plt.plot(radt,Uts)
-#plt.plot(thet,Uts)
-plt.plot(pts[1:5,2],Uabss[1:5])
-plt.plot(np.linspace(0,0.62832E+01,10),interp(0.015,0.0,np.linspace(0,0.62832E+01,10)))
-plt.show()
+Qabs_Suzuki = 4.3712007458420821E-003
+print 'according to suzuki, Qabs: ' + str(Qabs_Suzuki)
+print 'so Cabs = Qabs*Ap = ' + str(Qabs_Suzuki*Ap)
 
 
-dphi, dtheta = pi/250.0, pi/250.0
-[phi,theta] = np.mgrid[0:pi+dphi*1.5:dphi,0:2*pi+dtheta*1.5:dtheta]
-m0 = 4; m1 = 3; m2 = 2; m3 = 3; m4 = 6; m5 = 2; m6 = 6; m7 = 4;
-r = np.sin(m0*phi)**m1 + np.cos(m2*phi)**m3 + np.sin(m4*theta)**m5 + np.cos(m6*theta)**m7
-x = r*np.sin(phi)*np.cos(theta)
-y = r*np.cos(phi)
-z = r*np.sin(phi)*np.sin(theta)
+print 'Uabs_local*4/3*pi*r^3 = ' + str(0.72473E+02*4./3.*np.pi*radshell**3.)
 
-
-#s = mlab.mesh(x, y, z)
-#mlab.show()
-
-moop
-
-def diff_volume(p,t,r):
-  return r**2*np.sin(t)
-
-  out = griddata(pts,Uabss,(r,t,p),method='linear')*r**2*np.sin(t)
-  print out
-  if isnan(out):
-    print 'oh fuck'
-    die
-  else:
-    return out
-  
-def new_diff_Uabs(p,t,r):
-  out = interp(r,t,p)*r**2.*np.sin(t)
-  #out = r**(1.22)*r**2.*np.sin(t)
-  #print out
-  if isnan(out):
-    print 'oh fuck'
-    die
-  else:
-    return out
-
-volume = tplquad(diff_volume, r1, r2, lambda r:   t1, lambda r:   t2,
-                                      lambda r,t: p1, lambda r,t: p2)[0]
-print 'volume check (' + str(4./3.*np.pi*(radcore)**3.) + '): ' + str(volume)
-
-
-Qabs_core = tplquad(new_diff_Uabs, r1, r2, lambda r:   t1, lambda r:   t2,
-                                      lambda r,t: p1, lambda r,t: p2,
-                                      epsabs=1.49e-04, epsrel=1.49e-04)[0]
-print 'Qabs_core: ' + str(Qabs_core)
 #Qabs_shell = tplquad(diff_Uabs, r2, r3, lambda r:   t1, lambda r:   t2,
 #                                      lambda r,t: p1, lambda r,t: p2)[0]
 #print 'Qabs_shell: ' + str(Qabs_shell)
 #print 'Qabs (0.65...): ' + str(Qabs_core + Qabs_shell)
 #Qabs = tplquad(diff_Uabs, r1, r3, lambda r:   t1, lambda r:   t2,
 #                                        lambda r,t: p1, lambda r,t: p2)[0]
+
+mlab.surf(xx,yy,interpslice,warp_scale='auto')
+mlab.show()
 
 #print Qabs

@@ -145,7 +145,7 @@ C (11) x=1.0D0 -> x='1.0D0'
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 C     Declare all relevant physical constants
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      WAVEL = 7.0D0
+      WAVEL = 2.0D0
       RADCOR = 0.03D0
       RADCOT = 0.06D0
       PI=ACOS(-1.0D0)
@@ -157,14 +157,14 @@ C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       
 C     The optical constants:
 C     reference (background)
-      FILNAM(1)='Segelstein.txt'
-      WLFAC(1)=1.0D0 !factor so all wavelengths in micron
+      FILNAM(1)='vac.nk'
+      WLFAC(1)=1.0D-4 !factor so all wavelengths in micron
 C     core
-      FILNAM(2)='SiO2_palik.nk'
+      FILNAM(2)='test_material.nk'
 C      FILNAM(2)='Ag_palik.nk'
       WLFAC(2)=1.0D-4
 C     shell
-      FILNAM(3)='SiO2_palik.nk'
+      FILNAM(3)='test_material.nk'
 C      FILNAM(3)='Ag_palik.nk'
       WLFAC(3)=1.0D-4
       DO 901 I=1,3
@@ -202,9 +202,9 @@ C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       XPMAX(3) = 2*PI
      
 C     Now in cartesian     
-      NGRID(1) = 25
-      NGRID(2) = 25
-      NGRID(3) = 25
+      NGRID(1) = 12
+      NGRID(2) = 12
+      NGRID(3) = 12
       
       XCMIN(1) = -RADCOT
       XCMAX(1) = RADCOT
@@ -308,8 +308,6 @@ C
       CALL BHCOAT(X,Y,RFREL1,RFREL2,NSTOPF,QEXT,QSCA,QBACK)
       QABS=QEXT-QSCA
       
-      PRINT *,"Qabs = ", QABS
-      PRINT *,"Qsca = ", QSCA
 
    18 FORMAT('wavelength[nm],epsilon(ext),epsilon(abs),Qext,Qabs,',
      1'Qsca,Qback')
@@ -532,6 +530,8 @@ C each domain (core, coat, or external) & all fields
   111  CONTINUE
   101 CONTINUE   
       
+      PRINT *,"Qabs = ", QABS
+      PRINT *,"Qsca = ", QSCA
       
       STOP
       END
