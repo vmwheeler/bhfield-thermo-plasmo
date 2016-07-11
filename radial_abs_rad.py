@@ -4,9 +4,9 @@ from scipy.integrate import quad, dblquad, tplquad, nquad
 from scipy.interpolate import griddata, LinearNDInterpolator
 from math import isnan
 import matplotlib.pyplot as plt
-from mayavi import mlab
+#from mayavi import mlab
 
-data = np.loadtxt("./U_0allf_cart.dat",skiprows=2)
+data = np.loadtxt("./U_0allf_rad.dat",skiprows=2)
 
 radshell = 0.06  
 radcore = radshell/2.
@@ -21,7 +21,7 @@ ct = 0
 
 
 
-interp = LinearNDInterpolator(pts,Uabss/10/np.max(Uabss))
+interp = LinearNDInterpolator(pts,Uabss)
 
 #xs = np.linspace(-radshell,radshell,100)
 #ys = np.linspace(-radshell,radshell,100)

@@ -66,14 +66,20 @@ z2 = radshell
 Uabs_T = tplquad(interp,x1,x2, lambda x: y1, lambda x: y2,
                              lambda x,y: z1, lambda x,y: z2)
 
+eps0 = 8.854187E-12
+mu0 = 4.*np.pi*1.E-7
+
+
 Ap = np.pi*radshell*radshell
 print 'Uabs_T: ' + str(Uabs_T[0])
 Uabs_local = 0.48095E+02
 print 'Check using Uabs_local*4/3*pi*r^3 = ' + str(Uabs_local*4./3.*np.pi*radshell**3.)
 print 'My calc: Qabs = Cabs/Ap = 1/Ap int Uabs = ' + str(Uabs_T[0]/Ap)
+Qabs_corrected = Uabs_T[0]/Ap/(1./2.*np.sqrt(eps0/mu0))
+print 'my calc corrected by sqrt(eps0/mu0) = ' + str(Qabs_corrected)
 
 
-Qabs_Suzuki = 2.8949846648075673E-003
+Qabs_Suzuki = 2.0055393047884881E-002
 print 'according to suzuki, Qabs: ' + str(Qabs_Suzuki)
 print 'so Cabs = Qabs*Ap = ' + str(Qabs_Suzuki*Ap)
 
