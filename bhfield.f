@@ -145,7 +145,7 @@ C (11) x=1.0D0 -> x='1.0D0'
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 C     Declare all relevant physical constants
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      WAVEL = 2.0D0
+      WAVEL = 3.0D0
       RADCOR = 0.03D0
       RADCOT = 0.06D0
       PI=ACOS(-1.0D0)
@@ -297,6 +297,7 @@ C     RMAX=EXTMAX*SQRT(2.0D0)
       Y4=2.0D0*PI*RMAX*REFMED/WAVEL
       YMAX=MAX(Y1,Y2,Y3,Y4)
       NSTOPF=INT(YMAX+4.05D0*YMAX**0.3333D0+2.0D0)
+C      NSTOPF = NSTOPF -4
 C
    14 FORMAT ("CORE SIZE PARAM = ",F8.3,", COAT SIZE",
      1" PARAM = ",F8.3,", NSTOP(estim) = ",I3)

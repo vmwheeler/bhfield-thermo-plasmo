@@ -8,7 +8,8 @@ from mayavi import mlab
 
 data = np.loadtxt("./U_0allf_cart.dat",skiprows=2)
 
-radshell = 0.06E-6
+
+radshell = 60E-9
 radcore = radshell/2.
 
 #global Uabss
@@ -67,14 +68,18 @@ Uabs_T = tplquad(interp,x1,x2, lambda x: y1, lambda x: y2,
 
 Ap = np.pi*radshell*radshell
 print 'Uabs_T: ' + str(Uabs_T[0])
-print 'Uabs_T/Ap: ' + str(Uabs_T[0]/Ap)
+Uabs_local = 0.48095E+02
+print 'Check using Uabs_local*4/3*pi*r^3 = ' + str(Uabs_local*4./3.*np.pi*radshell**3.)
+print 'My calc: Qabs = Cabs/Ap = 1/Ap int Uabs = ' + str(Uabs_T[0]/Ap)
 
-Qabs_Suzuki = 4.3712007458420821E-003
+
+Qabs_Suzuki = 2.8949846648075673E-003
 print 'according to suzuki, Qabs: ' + str(Qabs_Suzuki)
 print 'so Cabs = Qabs*Ap = ' + str(Qabs_Suzuki*Ap)
 
 
-print 'Uabs_local*4/3*pi*r^3 = ' + str(0.72473E+02*4./3.*np.pi*radshell**3.)
+
+
 
 #Qabs_shell = tplquad(diff_Uabs, r2, r3, lambda r:   t1, lambda r:   t2,
 #                                      lambda r,t: p1, lambda r,t: p2)[0]
@@ -83,7 +88,7 @@ print 'Uabs_local*4/3*pi*r^3 = ' + str(0.72473E+02*4./3.*np.pi*radshell**3.)
 #Qabs = tplquad(diff_Uabs, r1, r3, lambda r:   t1, lambda r:   t2,
 #                                        lambda r,t: p1, lambda r,t: p2)[0]
 
-mlab.surf(xx,yy,interpslice,warp_scale='auto')
-mlab.show()
+#mlab.surf(xx,yy,interpslice,warp_scale='auto')
+#mlab.show()
 
 #print Qabs
