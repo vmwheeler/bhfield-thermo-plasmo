@@ -9,14 +9,14 @@ from mayavi import mlab
 data = np.loadtxt("./U_0allf_cart.dat",skiprows=2)
 
 
-radshell = 60E-9
+radshell = 0.06
 radcore = radshell/2.
 
 #global Uabss
 Uabss = data[:,3]
 
 #global pts
-pts = data[:,0:3]*1E-6
+pts = data[:,0:3]
 
 print pts
 
@@ -29,7 +29,7 @@ interp = Rbf(pts[:,0],pts[:,1],pts[:,2],Uabss)
 #ys = np.linspace(-radshell,radshell,100)
 #zs = np.linspace(-radshell,radshell,100)
 
-xx,yy = np.mgrid[-radshell:radshell:0.001,-radshell:radshell:0.001]
+xx,yy = np.mgrid[-radshell:radshell:0.01,-radshell:radshell:0.01]
 
 #print xx
 #print yy
@@ -76,7 +76,7 @@ Uabs_local = 0.48095E+02
 print 'Check using Uabs_local*4/3*pi*r^3 = ' + str(Uabs_local*4./3.*np.pi*radshell**3.)
 print 'My calc: Qabs = Cabs/Ap = 1/Ap int Uabs = ' + str(Uabs_T[0]/Ap)
 Qabs_corrected = Uabs_T[0]/Ap/(1./2.*np.sqrt(eps0/mu0))
-print 'my calc corrected by sqrt(eps0/mu0) = ' + str(Qabs_corrected)
+print 'my calc corrected by sqrt(eps0/mu0) = ' + str(Qabs_corrected*1.E-6)
 
 
 Qabs_Suzuki = 2.0055393047884881E-002
@@ -94,7 +94,11 @@ print 'so Cabs = Qabs*Ap = ' + str(Qabs_Suzuki*Ap)
 #Qabs = tplquad(diff_Uabs, r1, r3, lambda r:   t1, lambda r:   t2,
 #                                        lambda r,t: p1, lambda r,t: p2)[0]
 
-#mlab.surf(xx,yy,interpslice,warp_scale='auto')
-#mlab.show()
+print xx
+print yy
+print interpslice(xx,yy)
+
+mlab.surf(xx,yy,interpslice,warp_scale='auto')
+mlab.show()
 
 #print Qabs

@@ -145,7 +145,7 @@ C (11) x=1.0D0 -> x='1.0D0'
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 C     Declare all relevant physical constants
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      WAVEL = 0.50D0
+      WAVEL = 3.50D0
       RADCOR = 0.03D0
       RADCOT = 0.06D0
       PI=ACOS(-1.0D0)
@@ -165,6 +165,7 @@ C      FILNAM(2)='Ag_palik.nk'
       WLFAC(2)=1.0D-4
 C     shell
       FILNAM(3)='test_material.nk'
+C      FILNAM(3)='SiO2_palik.nk'
 C      FILNAM(3)='Ag_palik.nk'
       WLFAC(3)=1.0D-4
       DO 901 I=1,3
@@ -189,7 +190,7 @@ C     define the particle size parameters for core and shell
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 C     Define the grid
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      RGRID = 5 !r
+      RGRID = 40 !r
       SGRID = 5
       !THGRID = 5 !theta
       !PHGRID = 5 !phi
@@ -202,9 +203,9 @@ C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       XPMAX(3) = 2*PI
      
 C     Now in cartesian     
-      NGRID(1) = 12
-      NGRID(2) = 12
-      NGRID(3) = 12
+      NGRID(1) = 40
+      NGRID(2) = 40
+      NGRID(3) = 40
       
       XCMIN(1) = -RADCOT
       XCMAX(1) = RADCOT
