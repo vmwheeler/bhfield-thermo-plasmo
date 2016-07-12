@@ -9,7 +9,8 @@ FC=$(shell arprec-config --fc)
 # Should be whatever  "arprec-config --cxx"  returns.
 CXX=$(shell arprec-config --cxx)
 
-GSLSTUFF = $(shell pkg-config --cflags fgsl) $(shell pkg-config --libs fgsl)
+LIBS = /usr/lib64
+GSLSTUFF = $(shell pkg-config --cflags fgsl) -L$(LIBS) $(shell pkg-config --libs fgsl)
 
 # Fortran compiler flags.  Should be whatever  "arprec-config --fcflags"  
 # returns, but some items (like optimization levels) # can be 
@@ -63,7 +64,7 @@ all: bhfield-std-db.exe
 	$(FC) -cpp $(DEFINES) $(GSLSTUFF)         -O2 -Wall -static -o $@ $+
 
 %-std-db.exe: %.f
-	$(FC) -cpp $(DEFINES) $(GSLSTUFF) $(DBOPT) -O2 -Wall -static -o $@ $+
+	$(FC) -cpp $(DEFINES) $(GSLSTUFF) $(DBOPT) -O2 -Wall -o $@ $+
 
 
 # arprec version: two-step

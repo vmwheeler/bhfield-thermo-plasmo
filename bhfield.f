@@ -101,6 +101,8 @@ C (11) x=1.0D0 -> x='1.0D0'
 
       PROGRAM BHFIELD
 
+      USE fgsl
+
       IMPLICIT NONE
       REAL*8 UFTOL
       PARAMETER (UFTOL=1.0D-6)
