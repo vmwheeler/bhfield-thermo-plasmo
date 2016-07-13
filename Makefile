@@ -9,8 +9,11 @@ FC=$(shell arprec-config --fc)
 # Should be whatever  "arprec-config --cxx"  returns.
 CXX=$(shell arprec-config --cxx)
 
-LIBS = /usr/lib64
-GSLSTUFF = $(shell pkg-config --cflags fgsl) -L$(LIBS) $(shell pkg-config --libs fgsl)
+LIBLOCS = -L/usr/lib64 -L/home/vmwheeler/Software/local/lib
+LIBS = -lcuba -lm
+GSLSTUFF = $(shell pkg-config --cflags fgsl) $(LIBLOCS) $(shell pkg-config --libs fgsl)
+
+CUBASTUFF = -L/home/vmwheeler/Software/local/lib -lcuba -lm
 
 # Fortran compiler flags.  Should be whatever  "arprec-config --fcflags"  
 # returns, but some items (like optimization levels) # can be 
@@ -35,9 +38,8 @@ FCLIBS=-static $(shell arprec-config --fmainlib) $(shell arprec-config --fclibs)
 
 # common defs
 #DEFINES = -DNMAX_COEFFS=500 -DCHECK_SURFACE_MODE -DDATA_DIR="'./'"
-#DEFINES = -DNMAX_COEFFS=700 -DCHECK_SURFACE_MODE -DDATA_DIR="'/home/vmwheeler/Code/bhfield-121005/src/nkdata/'"
-DEFINES = -DNMAX_COEFFS=700 -DCHECK_SURFACE_MODE -DDATA_DIR="'/home/vmwheeler/Code/bhfield-thermo-plasmo/nkdata/'"
-#DEFINES = -DNMAX_COEFFS=700 -DCHECK_SURFACE_MODE -DDATA_DIR="'C:/Windoc/Programming/Fortran/Scatter/src/nkdata/'"
+DEFINES = -DNMAX_COEFFS=700 -DCHECK_SURFACE_MODE -DDATA_DIR="'/home/vmwheeler/Code/bhfield-121005/src/nkdata/'"
+#DEFINES = -DNMAX_COEFFS=700 -DCHECK_SURFACE_MODE -DDATA_DIR="'/home/vmwheeler/Code/bhfield-thermo-plasmo/nkdata/'"
 
 # ARP options
 #DARP = -DUSE_ARPREC -DUSE_ARPREC_LEGENDRE
@@ -61,11 +63,11 @@ all: bhfield-std-db.exe
 
 # standard version: one-step compilation
 %-std.exe: %.f
-	$(FC) -cpp $(DEFINES) $(GSLSTUFF)         -O2 -Wall -static -o $@ $+
+	$(FC) -cpp $(DEFINES) $(GSLSTUFF)       -O2 -Wall -static -o $@ $+
 
 %-std-db.exe: %.f
-	$(FC) -cpp $(DEFINES) $(GSLSTUFF) $(DBOPT) -O2 -Wall -o $@ $+
-
+	$(FC) -cpp $(DEFINES) $(LIBLOCS) $(LIBS) $(DBOPT) -g -static -O2 -Wall -o $@ $+ libcuba.a
+#	$(FC) -cpp $(DEFINES) $(CUBASTUFF) $(DBOPT) -static -O2 -Wall -o $@ $+
 
 # arprec version: two-step
 %.exe: %.o

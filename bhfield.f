@@ -99,9 +99,9 @@ C (10) WRITE() can't be used -> WRITE(*,*) DBLE(mpreal(z)) etc, or
 C      substitute into ordinary variables just for write()
 C (11) x=1.0D0 -> x='1.0D0'
 
-      PROGRAM BHFIELD
+#define cubareal real*8
 
-      USE fgsl
+      PROGRAM BHFIELD
 
       IMPLICIT NONE
       REAL*8 UFTOL
@@ -109,13 +109,13 @@ C (11) x=1.0D0 -> x='1.0D0'
       
       INTEGER I,J,K,NSTOPF,IW,CT,NPTSPH,NPTSTH,IWHERE,N
       
-      REAL*8 WLFAC(3)
+      REAL*8 WLFAC(3),UABS_T
       
       REAL*8 RADCOR,RADCOT,WAVEL,PI,CC,EPSVAC,MU,OMEGA
       REAL*8 REFMED,REFRE1,REFIM1,REFRE2,REFIM2
       REAL*8 X,Y,Y1,Y2,Y3,Y4,YMAX,EXTMAX,RMAX
       REAL*8 QEXT,QSCA,QBACK,QABS,EFSQ,UABS
-      REAL*8 DELTAS1,RAD
+      REAL*8 DELTAS1,RAD, I0, AP
       
       COMPLEX*16 RFREL1,RFREL2
       COMPLEX*16 EC(3),HC(3)
@@ -192,7 +192,7 @@ C     define the particle size parameters for core and shell
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 C     Define the grid
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      RGRID = 40 !r
+      RGRID = 10 !r
       SGRID = 5
       !THGRID = 5 !theta
       !PHGRID = 5 !phi
@@ -205,9 +205,9 @@ C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       XPMAX(3) = 2*PI
      
 C     Now in cartesian     
-      NGRID(1) = 40
-      NGRID(2) = 40
-      NGRID(3) = 40
+      NGRID(1) = 4 
+      NGRID(2) = 4
+      NGRID(3) = 4
       
       XCMIN(1) = -RADCOT
       XCMAX(1) = RADCOT
@@ -537,17 +537,377 @@ C each domain (core, coat, or external) & all fields
       PRINT *,"Qabs = ", QABS
       PRINT *,"Qsca = ", QSCA
       
+      CALL IntegrateUABS(RADCOR,RADCOT,WAVEL,
+     &                   REFMED,REFRE1,REFIM1,REFRE2,REFIM2,
+     &                   EPSVAC,OMEGA,UABS_T)
+      
+      PRINT *, "UABS_T = ", UABS_T
+      
+      I0 = 0.5*SQRT(EPSVAC/MU)*1.
+      AP = PI*RADCOT*RADCOT
+      
+      PRINT *, "Thus, Qabs = UABS_T/A_p/I0*1.E-6 = ", UABS_T/AP/I0*1.E-6 
+      PRINT *, "Volume: ", 4./3.*RADCOT**3
       STOP
       END
       
+
+C *******************************************************************
+C  This sets up and calls the cuba library to integrate over the sphere
+C *********************************************************************
       
+      SUBROUTINE IntegrateUABS(RADCOR,RADCOT,WAVEL,
+     &                         REFMED,REFRE1,REFIM1,REFRE2,REFIM2,
+     &                         EPSVAC,OMEGA,UABS_T)
+
+      implicit none
+
+      integer ndim, ncomp, nvec, last, seed, mineval, maxeval
+      cubareal epsrel, epsabs
+      
+      real*8 userdata(10),UABS_T
+      
+      parameter (ndim = 3)
+      parameter (ncomp = 1)
+      parameter (nvec = 1)
+      parameter (epsrel = 1D-4)
+      parameter (epsabs = 1D-12)
+      parameter (last = 4)
+      parameter (seed = 0)
+      parameter (mineval = 0)
+      parameter (maxeval = 50000)
+
+      integer nstart, nincrease, nbatch, gridno
+      integer*8 spin
+      character*(*) statefile
+      parameter (nstart = 1000)
+      parameter (nincrease = 500)
+      parameter (nbatch = 1000)
+      parameter (gridno = 0)
+      parameter (statefile = "")
+      parameter (spin = -1)
+
+      integer nnew, nmin
+      cubareal flatness
+      parameter (nnew = 1000)
+      parameter (nmin = 2)
+      parameter (flatness = 25D0)
+
+      integer key1, key2, key3, maxpass
+      cubareal border, maxchisq, mindeviation
+      integer ngiven, ldxgiven, nextra
+      parameter (key1 = 47)
+      parameter (key2 = 1)
+      parameter (key3 = 1)
+      parameter (maxpass = 5)
+      parameter (border = 0D0)
+      parameter (maxchisq = 10D0)
+      parameter (mindeviation = .25D0)
+      parameter (ngiven = 0)
+      parameter (ldxgiven = ndim)
+      parameter (nextra = 0)
+
+      integer key
+      parameter (key = 0)
+
+      REAL*8 RADCOR,RADCOT,WAVEL,EPSVAC,OMEGA
+      REAL*8 REFMED,REFRE1,REFIM1,REFRE2,REFIM2
+      
+      external diffUABS
+
+      cubareal integral(ncomp), error(ncomp), prob(ncomp)
+      integer verbose, neval, fail, nregions
+      character*16 env
+
+      integer c
+
+      
+      userdata(1) = WAVEL
+      userdata(2) = REFMED
+      userdata(3) = REFRE1
+      userdata(4) = REFIM1
+      userdata(5) = REFRE2
+      userdata(6) = REFIM2
+      userdata(7) = RADCOR
+      userdata(8) = RADCOT
+      userdata(9) = EPSVAC
+      userdata(10) = OMEGA
+      
+      
+      call getenv("CUBAVERBOSE", env)
+      verbose = 2
+      read(env, *, iostat=fail, end=999, err=999) verbose
+  999 continue
+
+      print *, "-------------------- Vegas test --------------------"
+
+      call Vegas(ndim, ncomp, diffUABS, userdata, nvec, 
+     &   epsrel, epsabs, verbose, seed, 
+     &   mineval, maxeval, nstart, nincrease, nbatch, 
+     &   gridno, statefile, spin, 
+     &   neval, fail, integral, error, prob)
+
+      print *, "neval    =", neval
+      print *, "fail     =", fail
+      print '(F20.12," +- ",F20.12,"   p = ",F8.3)', 
+     &   (integral(c), error(c), prob(c), c = 1, ncomp)
+      
+      UABS_T = integral(1)
+
+      RETURN
+      END 
+      
+C************************************************************************
+
+        integer function diffUABS(ndim, xx, ncomp, ff, userdata)
+        implicit none
+        integer ndim, ncomp, IWHERE
+        cubareal xx(*), ff(*)
+        real*8 userdata(10), pi
+        REAL*8 RADCOR,RADCOT,WAVEL,XP(3),EPSVAC,OMEGA
+        REAL*8 REFMED,REFRE1,REFIM1,REFRE2,REFIM2,EFSQ,UABS
+        COMPLEX*16 EC(3),HC(3)
+        parameter (pi = 3.14159265358979323846D0)
+#define x xx(1)
+#define y xx(2)
+#define z xx(3)
+#define f ff(1)
+        
+        WAVEL = userdata(1)
+        REFMED = userdata(2)
+        REFRE1 = userdata(3)
+        REFIM1 = userdata(4)
+        REFRE2 = userdata(5)
+        REFIM2 = userdata(6)
+        RADCOR = userdata(7)
+        RADCOT = userdata(8)
+        EPSVAC = userdata(9)
+        OMEGA = userdata(10)
+        
+        !PRINT *, 'moopsy'
+        !print *, 'WAVEL: ', WAVEL
+        !print *, 'REFMED: ', REFMED
+        !print *, 'REFRE1: ', REFRE1
+        !print *, 'REFIM1: ', REFIM1
+        !print *, 'REFRE2: ', REFRE2
+        !print *, 'REFIM2: ', REFIM2
+        !print *, 'RADCOR: ', RADCOR
+        !print *, 'RADCOT: ', RADCOT
+        
+        XP(1) = RADCOT*(x**(1./3.))
+        XP(2) = acos(1.-2.*y)
+        XP(3) = 2.*pi*z
+        
+        print *, XP(1),XP(2),XP(3)
+        
+        CALL FIELDFAST(WAVEL,REFMED,REFRE1,REFIM1,REFRE2,
+     1                    REFIM2,RADCOR,RADCOT,XP,EC,HC)
+        EFSQ=ABS(EC(1))**2.0D0+ABS(EC(2))**2.0D0+ABS(EC(3))**2.0D0
+        UABS=EPSVAC*OMEGA*REFRE1*REFIM1*EFSQ
+        f = 1;
+        !f = UABS
+        !f = XP(1)*XP(1)*SIN(XP(2))
+        
+        !f = UABS*XP(1)*XP(1)*SIN(XP(2))
+        !f = sin(x)*cos(y)*exp(z)
+        !PRINT *, x,y,z,f
+        !print *, 'then...'
+        !print *, f
+        !print *, 'after'
+
+        diffUABS = 0
+        end
+      
+      
+  
+      subroutine CubaTest()
+      implicit none
+
+      integer ndim, ncomp, nvec, last, seed, mineval, maxeval
+      cubareal epsrel, epsabs!, userdata
+      
+      real*8 userdata
+      
+      parameter (ndim = 3)
+      parameter (ncomp = 1)
+      !parameter (userdata = 0)
+      parameter (nvec = 1)
+      parameter (epsrel = 1D-3)
+      parameter (epsabs = 1D-12)
+      parameter (last = 4)
+      parameter (seed = 0)
+      parameter (mineval = 0)
+      parameter (maxeval = 50000)
+
+      integer nstart, nincrease, nbatch, gridno
+      integer*8 spin
+      character*(*) statefile
+      parameter (nstart = 1000)
+      parameter (nincrease = 500)
+      parameter (nbatch = 1000)
+      parameter (gridno = 0)
+      parameter (statefile = "")
+      parameter (spin = -1)
+
+      integer nnew, nmin
+      cubareal flatness
+      parameter (nnew = 1000)
+      parameter (nmin = 2)
+      parameter (flatness = 25D0)
+
+      integer key1, key2, key3, maxpass
+      cubareal border, maxchisq, mindeviation
+      integer ngiven, ldxgiven, nextra
+      parameter (key1 = 47)
+      parameter (key2 = 1)
+      parameter (key3 = 1)
+      parameter (maxpass = 5)
+      parameter (border = 0D0)
+      parameter (maxchisq = 10D0)
+      parameter (mindeviation = .25D0)
+      parameter (ngiven = 0)
+      parameter (ldxgiven = ndim)
+      parameter (nextra = 0)
+
+      integer key
+      parameter (key = 0)
+
+      external integrand
+
+      cubareal integral(ncomp), error(ncomp), prob(ncomp)
+      integer verbose, neval, fail, nregions
+      character*16 env
+
+      integer c
+
+      userdata = 29.0D0
+      
+      call getenv("CUBAVERBOSE", env)
+      verbose = 2
+      read(env, *, iostat=fail, end=999, err=999) verbose
+  999 continue
+
+      print *, "-------------------- Vegas test --------------------"
+
+      call Vegas(ndim, ncomp, integrand, userdata, nvec, 
+     &   epsrel, epsabs, verbose, seed, 
+     &   mineval, maxeval, nstart, nincrease, nbatch, 
+     &   gridno, statefile, spin, 
+     &   neval, fail, integral, error, prob)
+
+      print *, "neval    =", neval
+      print *, "fail     =", fail
+      print '(F20.12," +- ",F20.12,"   p = ",F8.3)', 
+     &   (integral(c), error(c), prob(c), c = 1, ncomp)
+
+      print *, " "
+      print *, "-------------------- Suave test --------------------"
+
+      call suave(ndim, ncomp, integrand, userdata, nvec,
+     &   epsrel, epsabs, verbose + last, seed,
+     &   mineval, maxeval, nnew, nmin, flatness,
+     &   statefile, spin,
+     &   nregions, neval, fail, integral, error, prob)
+
+      print *, "nregions =", nregions
+      print *, "neval    =", neval
+      print *, "fail     =", fail
+      print '(F20.12," +- ",F20.12,"   p = ",F8.3)',
+     &   (integral(c), error(c), prob(c), c = 1, ncomp)
+     
+      end
+      
+      
+
+      
+      
+C************************************************************************
+
+        integer function integrand(ndim, xx, ncomp, ff, userdata)
+        implicit none
+        integer ndim, ncomp, IWHERE
+        cubareal xx(*), ff(*)
+        real*8 userdata
+        !REAL*8 RADCOR,RADCOT,WAVEL,XP(3)
+        !REAL*8 REFMED,REFRE1,REFIM1,REFRE2,REFIM2
+        !COMPLEX*16 EC(3),HC(3)
+#define x xx(1)
+#define y xx(2)
+#define z xx(3)
+#define f ff(1)
+
+
+        !CALL FIELDVMW(WAVEL,REFMED,REFRE1,REFIM1,REFRE2,REFIM2,
+       !&            RADCOR,RADCOT,XP, IWHERE,EC,HC)
+       ! EFSQ=ABS(EC(1))**2.0D0+ABS(EC(2))**2.0D0+ABS(EC(3))**2.0D0
+       ! UABS=EPSVAC*OMEGA*REFRE1*REFIM1*EFSQ
+
+        f = sin(2.*x)*cos(y)*exp(z)
+        !PRINT *, x,y,z,f
+        !print *, 'then...'
+        !print *, f
+        !print *, 'after'
+
+        integrand = 0
+        end
+      
+C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+C     VMW rewrite of FIELD that receives and GIVES the E and H field in 
+C     spherical coordinates without any extra funny business
+C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      SUBROUTINE FIELDFAST(WAVEL,REFMED,REFRE1,REFIM1,REFRE2,REFIM2,
+     1                 RADCOR,RADCOT,XP,EF,HF)
+C
+C     select field subroutines to calc E & H complex fields
+C     (cartesian components)
+C
+      IMPLICIT NONE
+      INTEGER IWHERE
+      REAL*8 WAVEL,REFMED,REFRE1,REFIM1,REFRE2,REFIM2
+      REAL*8 RADCOR,RADCOT,R,THETA,PHI
+      REAL*8 XP(3)
+      COMPLEX*16 EF(3),HF(3)
+
+      R = XP(1)
+      THETA = XP(2)
+      PHI = XP(3)
+      
+C
+C avoid origin (R=0); division by rho (x) in subroutines
+C use R=small but retain fake XP=YP=ZP=0 for vtk 3D plot
+C
+      IF(R.EQ.0.0D0) THEN
+       R=MAX(RADCOR,RADCOT*1.0D-3)*1.0D-3
+      END IF
+C
+      IF(R.LE.RADCOR) THEN
+C core internal field
+       IWHERE=1
+       CALL FIELIN(WAVEL,REFRE1,REFIM1,R,THETA,PHI, EF,HF)
+C
+      ELSE IF(R.LE.RADCOT) THEN
+C coating field
+       IWHERE=2
+       CALL FIELCT(WAVEL,REFRE2,REFIM2,
+     1             R,THETA,PHI, EF,HF)
+C
+      ELSE
+C external field = incident + scattered
+       IWHERE=3
+       CALL FIELEX(WAVEL,REFMED,R,THETA,PHI, EF,HF)
+C
+      END IF
+
+
+      RETURN
+      END   
       
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 C     VMW rewrite of FIELD that receives and GIVES the E and H field in 
 C     spherical coordinates
 C     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE FIELDVMW(WAVEL,REFMED,REFRE1,REFIM1,REFRE2,REFIM2,
-     1                 RADCOR,RADCOT,XP, IWHERE,EF,HF)
+     1                 RADCOR,RADCOT,XP,IWHERE,EF,HF)
 C
 C     select field subroutines to calc E & H complex fields
 C     (cartesian components)
